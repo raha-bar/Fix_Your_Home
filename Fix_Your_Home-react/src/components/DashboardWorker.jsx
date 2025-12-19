@@ -20,6 +20,7 @@ const DashboardWorker = () => {
   })
   const [applying, setApplying] = useState(false)
   const [acceptingJobId, setAcceptingJobId] = useState(null)
+  const [startingJobId, setStartingJobId] = useState(null)
   const [showCompleteModal, setShowCompleteModal] = useState(false)
   const [jobToComplete, setJobToComplete] = useState(null)
   const [completeForm, setCompleteForm] = useState({
@@ -118,18 +119,34 @@ const DashboardWorker = () => {
   }
 
   const handleAcceptJob = async (job) => {
-    if (!window.confirm('Accept this job and start working on it?')) return
+    if (!window.confirm('Accept this job assignment?')) return
 
     setAcceptingJobId(job.id)
     try {
       await api.acceptJob(job.id)
       await fetchJobs()
-      alert('Job accepted successfully!')
+      alert('Job accepted successfully! You can now start working on it.')
     } catch (error) {
       console.error('Error accepting job:', error)
       alert(error.response?.data?.message || 'Failed to accept job')
     } finally {
       setAcceptingJobId(null)
+    }
+  }
+
+  const handleStartJob = async (job) => {
+    if (!window.confirm('Start working on this job?')) return
+
+    setStartingJobId(job.id)
+    try {
+      await api.startJob(job.id)
+      await fetchJobs()
+      alert('Job started successfully!')
+    } catch (error) {
+      console.error('Error starting job:', error)
+      alert(error.response?.data?.message || 'Failed to start job')
+    } finally {
+      setStartingJobId(null)
     }
   }
 
@@ -204,8 +221,8 @@ const DashboardWorker = () => {
     <div className="min-h-screen bg-[#f7f2f0] text-slate-800">
       <header className="max-w-6xl mx-auto mt-8 flex items-center justify-between gap-6 rounded-full border border-slate-100 bg-white/70 px-6 py-3 shadow-sm backdrop-blur">
         <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-full bg-gradient-to-br from-indigo-100 via-sky-100 to-emerald-50 shadow-inner" />
-          <div>
+          <a href="/" className="logo" aria-label="Fix Your Home" />
+          <div className="ml-24">
             <p className="text-lg font-semibold tracking-tight text-slate-900">Fix Your Home</p>
             <p className="text-xs text-slate-500">Worker dashboard</p>
           </div>
@@ -356,12 +373,13 @@ const DashboardWorker = () => {
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
                           <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                            job.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                             job.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
                             job.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                             job.status === 'completed' ? 'bg-slate-100 text-slate-700' :
-                            'bg-amber-100 text-amber-700'
+                            'bg-red-100 text-red-700'
                           }`}>
-                            {job.status}
+                            {job.status === 'in_progress' ? 'In Progress' : job.status}
                           </span>
                         </div>
                         {job.description && (
@@ -380,15 +398,24 @@ const DashboardWorker = () => {
                         )}
                       </div>
                     </div>
-                    {(job.status === 'accepted' || job.status === 'in_progress') && (
+                    {(job.status === 'pending' || job.status === 'accepted' || job.status === 'in_progress') && (
                       <div className="mt-3 flex flex-wrap gap-3">
-                        {job.status === 'accepted' && (
+                        {job.status === 'pending' && (
                           <button
                             onClick={() => handleAcceptJob(job)}
                             disabled={acceptingJobId === job.id}
+                            className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-50"
+                          >
+                            {acceptingJobId === job.id ? 'Accepting...' : 'Accept Job Assignment'}
+                          </button>
+                        )}
+                        {job.status === 'accepted' && (
+                          <button
+                            onClick={() => handleStartJob(job)}
+                            disabled={startingJobId === job.id}
                             className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-600 disabled:opacity-50"
                           >
-                            {acceptingJobId === job.id ? 'Accepting...' : 'Accept Job'}
+                            {startingJobId === job.id ? 'Starting...' : 'Start Job'}
                           </button>
                         )}
                         {job.status === 'in_progress' && (

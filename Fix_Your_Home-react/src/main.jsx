@@ -2,6 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+import './App.css';
 import App from './App.jsx';
 import axios from 'axios';
 import { AuthProvider } from './context/AuthContext.jsx';

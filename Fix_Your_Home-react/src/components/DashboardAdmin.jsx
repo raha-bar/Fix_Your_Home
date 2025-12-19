@@ -81,7 +81,8 @@ const DashboardAdmin = () => {
     <div className="min-h-screen bg-gradient-to-b from-[#eef4ff] via-white to-[#f7f2f0] text-slate-900">
       <header className="max-w-6xl mx-auto mt-8 flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white/90 px-6 py-5 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">Control Center</p>
+          <a href="/" className="logo" aria-label="Fix Your Home" />
+          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">Control Center</p>
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
           <p className="text-sm text-slate-500">Monitor system health, revenue, and workforce.</p>
         </div>

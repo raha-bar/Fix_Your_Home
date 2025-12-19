@@ -330,7 +330,8 @@ const DashboardUser = () => {
     <div className="min-h-screen bg-gradient-to-b from-[#f7f2f0] via-white to-[#f0f7f9] text-slate-800">
       <header className="max-w-6xl mx-auto mt-8 flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white/80 px-6 py-4 shadow-md backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-500">Welcome back</p>
+          <a href="/" className="logo" aria-label="Fix Your Home" />
+          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-sky-500">Welcome back</p>
           <h1 className="text-2xl font-bold text-slate-900">User Dashboard</h1>
           <p className="text-sm text-slate-500">Manage requests, browse workers, track progress.</p>
         </div>
@@ -448,9 +449,23 @@ const DashboardUser = () => {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 capitalize">
-                        {req.status}
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        req.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                        req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
+                        req.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                        req.status === 'completed' ? 'bg-slate-100 text-slate-700' :
+                        req.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                        'bg-slate-100 text-slate-600'
+                      } capitalize`}>
+                        {req.status === 'in_progress' ? 'In Progress' : req.status}
                       </span>
+                      {req.status === 'in_progress' && !req.final_price && (
+                        <button
+                          className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow-sm"
+                        >
+                          Pay Now
+                        </button>
+                      )}
                       <span className="text-sm font-semibold text-slate-800">
                         {formatPrice(req.final_price || req.budget)}
                       </span>
@@ -472,6 +487,11 @@ const DashboardUser = () => {
                         >
                           View Worker
                         </button>
+                      )}
+                      {req.worker_id && req.status === 'pending' && (
+                        <span className="text-xs text-amber-600 font-semibold">
+                          Waiting for worker to accept
+                        </span>
                       )}
                       {!req.worker_id && req.status === 'pending' && (
                         <button
