@@ -6,10 +6,25 @@
 }
 
 .logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+    position: relative;
+    width: 217px;
+    height: 50px;
+    max-width: 100%;
+    background-image: url('/images/fix-your-home-high-resolution-logo-transparent.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    display: block;
+    margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+    .logo {
+        width: 100%;
+        max-width: 400px;
+        height: auto;
+        min-height: 80px;
+    }
 }
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);

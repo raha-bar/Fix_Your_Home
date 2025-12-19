@@ -206,6 +206,7 @@ class WorkerController extends Controller
         // 1. Don't have a worker assigned yet (worker_id is NULL)
         // 2. Status is pending
         // 3. Worker hasn't already applied
+        // Note: Jobs with worker_id set are direct bookings and not available for application
         $appliedJobIds = WorkerApplication::where('worker_id', $worker->worker_id)
             ->pluck('job_request_id')
             ->toArray();
@@ -225,6 +226,7 @@ class WorkerController extends Controller
 
     /**
      * Get job requests assigned to this worker
+     * Includes jobs with status: pending (assigned but not yet accepted), accepted, in_progress, completed
      */
     public function getMyJobs(Request $request): JsonResponse
     {
@@ -242,7 +244,9 @@ class WorkerController extends Controller
 
         $perPage = $request->input('per_page', 15);
 
+        // Get all jobs assigned to this worker (including pending ones that need acceptance)
         $myJobs = JobRequest::where('worker_id', $worker->worker_id)
+            ->whereIn('status', ['pending', 'accepted', 'in_progress', 'completed'])
             ->with(['customer', 'applications'])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
@@ -311,10 +315,52 @@ class WorkerController extends Controller
     }
 
     /**
-     * Worker confirms they will take on an assigned job.
-     * This moves the job into the "in_progress" state.
+     * Worker accepts a job that has been assigned to them.
+     * This moves the job from "pending" to "accepted" state.
+     * Worker can then start the job (which moves it to "in_progress").
      */
     public function acceptJob(Request $request, int $jobRequestId): JsonResponse
+    {
+        $auth = $request->user();
+
+        if ($auth->type !== 'worker') {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $worker = Worker::where('worker_id', $auth->id)->first();
+
+        if (!$worker) {
+            return response()->json(['message' => 'Worker profile not found'], 404);
+        }
+
+        // Accept jobs that are pending and assigned to this worker
+        $jobRequest = JobRequest::where('id', $jobRequestId)
+            ->where('worker_id', $worker->worker_id)
+            ->where('status', 'pending')
+            ->first();
+
+        if (!$jobRequest) {
+            return response()->json(['message' => 'Job not found or cannot be accepted'], 404);
+        }
+
+        // Change status from 'pending' to 'accepted'
+        $jobRequest->status = 'accepted';
+        $jobRequest->save();
+
+        $jobRequest->load(['customer', 'applications']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Job accepted successfully',
+            'data' => $jobRequest,
+        ]);
+    }
+
+    /**
+     * Worker starts working on an accepted job.
+     * This moves the job from "accepted" to "in_progress" state.
+     */
+    public function startJob(Request $request, int $jobRequestId): JsonResponse
     {
         $auth = $request->user();
 
@@ -334,7 +380,7 @@ class WorkerController extends Controller
             ->first();
 
         if (!$jobRequest) {
-            return response()->json(['message' => 'Job not found or cannot be accepted'], 404);
+            return response()->json(['message' => 'Job not found or cannot be started'], 404);
         }
 
         $jobRequest->status = 'in_progress';
@@ -344,7 +390,7 @@ class WorkerController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Job accepted successfully',
+            'message' => 'Job started successfully',
             'data' => $jobRequest,
         ]);
     }

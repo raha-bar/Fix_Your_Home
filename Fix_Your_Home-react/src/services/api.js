@@ -26,6 +26,7 @@ const api = {
   getMyJobs: (params = {}) => axios.get('/api/worker/my-jobs', { params }),
   applyForJob: (jobRequestId, data) => axios.post(`/api/worker/jobs/${jobRequestId}/apply`, data),
   acceptJob: (jobRequestId) => axios.post(`/api/worker/jobs/${jobRequestId}/accept`),
+  startJob: (jobRequestId) => axios.post(`/api/worker/jobs/${jobRequestId}/start`),
   completeJob: (jobRequestId, data) => axios.post(`/api/worker/jobs/${jobRequestId}/complete`, data),
 
   // User endpoints

@@ -77,7 +77,8 @@ class UserController extends Controller
         }
 
         $workerId = $data['worker_id'] ?? null;
-        $status = $workerId ? 'accepted' : 'pending';
+        // Always set status to 'pending' - worker must accept the job
+        // Status will change to 'accepted' when worker accepts, then 'in_progress' when they start
 
         $jobRequest = JobRequest::create([
             'customer_id' => $customer->customer_id,
@@ -85,7 +86,7 @@ class UserController extends Controller
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'budget' => $data['budget'] ?? null,
-            'status' => $status,
+            'status' => 'pending',
             'scheduled_at' => $data['scheduled_at'] ?? null,
         ]);
 

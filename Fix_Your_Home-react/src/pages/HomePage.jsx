@@ -30,10 +30,9 @@ export default function HomePage() {
         <div style={styles.cardWide}>
           <header style={styles.headerRow}>
             <div>
-              <h1 style={styles.brand}>Fix Your Home</h1>
-              <p style={styles.subtitle}>
-                Redirecting to your dashboard...
-              </p>
+              <a href="/" className="logo" aria-label="Fix Your Home" />
+              <h1 style={{ ...styles.brand, marginTop: '90px' }}>Fix Your Home</h1>
+              <p style={styles.subtitle}>Redirecting to your dashboard...</p>
             </div>
           </header>
         </div>
@@ -44,9 +43,10 @@ export default function HomePage() {
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <h1 style={styles.brand}>Fix Your Home</h1>
+        <a href="/" className="logo" aria-label="Fix Your Home" />
+        <h1 style={{ ...styles.brand, marginTop: '90px' }}></h1>
         <p style={styles.subtitle}>
-          Sign up as a user, sign up as a worker, or log in to your account.
+        
         </p>
 
         {/* Modern tab row */}
