@@ -326,6 +326,18 @@ const DashboardUser = () => {
     return price ? `$${parseFloat(price).toFixed(2)}` : 'N/A'
   }
 
+  const navigateToPayment = (job) => {
+    navigate('/payment', {
+      state: {
+        jobId: job.id,
+        title: job.title,
+        workerName: job.worker?.name || 'Worker',
+        customerName: job.customer?.name,
+        amount: job.final_price ?? job.budget ?? 0,
+      },
+    })
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f7f2f0] via-white to-[#f0f7f9] text-slate-800">
       <header className="max-w-6xl mx-auto mt-8 flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white/80 px-6 py-4 shadow-md backdrop-blur sm:flex-row sm:items-center sm:justify-between">
@@ -461,6 +473,7 @@ const DashboardUser = () => {
                       </span>
                       {req.status === 'in_progress' && !req.final_price && (
                         <button
+                          onClick={() => navigateToPayment(req)}
                           className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white shadow-sm"
                         >
                           Pay Now

@@ -84,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Nearest workers (for authenticated users)
     Route::get('/workers/nearest', [WorkerController::class, 'getNearestWorkers']);
+    Route::post('/user/jobs/{jobRequestId}/pay', [UserController::class, 'payForJob']);
 });
 
 /**

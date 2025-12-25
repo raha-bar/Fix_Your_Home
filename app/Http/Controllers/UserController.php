@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\JobRequest;
 use App\Models\Worker;
+use App\Models\Payment;
 use App\Models\WorkerApplication;
 use Illuminate\Http\Request;
 
@@ -16,14 +17,14 @@ class UserController extends Controller
     public function getJobRequests(Request $request)
     {
         $auth = $request->user();
-        
+
         if ($auth->type !== 'user') {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         // Get customer ID from auth
         $customer = Customer::where('customer_id', $auth->id)->first();
-        
+
         if (!$customer) {
             return response()->json([
                 'success' => true,
@@ -38,9 +39,9 @@ class UserController extends Controller
         }
 
         $perPage = $request->input('per_page', 15);
-        
+
         $jobRequests = JobRequest::where('customer_id', $customer->customer_id)
-            ->with(['worker', 'worker.services', 'applications.worker', 'applications.worker.services'])
+            ->with(['customer', 'worker', 'worker.services', 'applications.worker', 'applications.worker.services'])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
@@ -56,7 +57,7 @@ class UserController extends Controller
     public function createJobRequest(Request $request)
     {
         $auth = $request->user();
-        
+
         if ($auth->type !== 'user') {
             return response()->json(['message' => 'Forbidden'], 403);
         }
@@ -71,7 +72,7 @@ class UserController extends Controller
 
         // Get customer ID from auth
         $customer = Customer::where('customer_id', $auth->id)->first();
-        
+
         if (!$customer) {
             return response()->json(['message' => 'Customer profile not found'], 404);
         }
@@ -143,13 +144,13 @@ class UserController extends Controller
     public function acceptWorkerApplication(Request $request, $jobRequestId, $applicationId)
     {
         $auth = $request->user();
-        
+
         if ($auth->type !== 'user') {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $customer = Customer::where('customer_id', $auth->id)->first();
-        
+
         if (!$customer) {
             return response()->json(['message' => 'Customer profile not found'], 404);
         }
@@ -197,5 +198,64 @@ class UserController extends Controller
             'data' => $jobRequest,
         ]);
     }
-}
 
+    public function payForJob(Request $request, int $jobRequestId)
+    {
+        $auth = $request->user();
+        if ($auth->type !== 'user') {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $customer = Customer::where('customer_id', $auth->id)->first();
+        if (!$customer) {
+            return response()->json(['message' => 'Customer profile not found'], 404);
+        }
+
+        $job = JobRequest::where('id', $jobRequestId)
+            ->where('customer_id', $customer->customer_id)
+            ->with('worker')
+            ->first();
+
+        if (!$job) {
+            return response()->json(['message' => 'Job not found'], 404);
+        }
+
+        // Assume the amount is final_price if set, otherwise budget.
+        $amount = $job->final_price ?? $job->budget;
+        if ($amount === null) {
+            return response()->json(['message' => 'No price set for this job'], 422);
+        }
+
+        $data = $request->validate([
+            'method'         => 'required|in:card,bkash',
+            'account_number' => 'required|string|max:50',
+            'pin'            => 'required|string|max:20',
+        ]);
+
+        $payment = Payment::create([
+            'job_request_id' => $job->id,
+            'customer_id'    => $customer->customer_id,
+            'worker_id'      => $job->worker_id,
+            'amount'         => $amount,
+            'method'         => $data['method'],
+            'account_number' => $data['account_number'],
+            'pin'            => $data['pin'],
+            'status'         => 'paid',
+        ]);
+
+        // Mark job as completed immediately; worker does not need to verify.
+        $job->status       = 'completed';
+        $job->completed_at = now();
+        $job->final_price  = $amount;
+        $job->save();
+
+        $job->load(['worker', 'customer']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment successful and job completed',
+            'job'     => $job,
+            'payment' => $payment,
+        ]);
+    }
+}
