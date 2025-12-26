@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
+import axios from 'axios'
 import { useAuth } from '../context/AuthContext.jsx'
 
 const DashboardUser = () => {
@@ -30,6 +31,11 @@ const DashboardUser = () => {
   const [urgentWorkers, setUrgentWorkers] = useState([])
   const [urgentLoading, setUrgentLoading] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
+  const [multiServiceWorkers, setMultiServiceWorkers] = useState([]);
+  const [multiServiceLoading, setMultiServiceLoading] = useState(false);
+  const [multiServiceError, setMultiServiceError] = useState('');
+
+
 
   const handleLogout = async () => {
     await logout()
@@ -60,7 +66,7 @@ const DashboardUser = () => {
 
       // Refresh job requests
       await fetchData()
-      
+
       // Close modals and reset form
       setShowBookingForm(false)
       setShowWorkerProfile(false)
@@ -186,8 +192,50 @@ const DashboardUser = () => {
     }
   }
 
+  const fetchMultiServiceWorkers = async () => {
+    try {
+      setMultiServiceLoading(true);
+      const res = await axios.get('/api/workers/multi-service', {
+        params: { limit: 10 },
+      });
+      setMultiServiceWorkers(res.data.data || []);
+    } catch (err) {
+      console.error('multi-service error', err.response || err);
+      setMultiServiceError('Failed to load multi-service workers');
+    } finally {
+      setMultiServiceLoading(false);
+    }
+  };
+
+  const handleSelectWorker = async (worker) => {
+    // Normalize and open worker profile + allow booking
+    setSelectedWorker(worker)
+    setShowWorkerProfile(true)
+
+    try {
+      setWorkerDetailsLoading(true)
+      const id = worker.id || worker.worker_id
+      const response = await api.getWorker(id)
+      const detailed = response.data?.data || response.data
+      // ensure both id and worker_id are present for UI checks
+      const normalized = { ...(detailed || {}), worker_id: detailed?.worker_id || id, id: detailed?.id || id }
+      setSelectedWorker(normalized)
+    } catch (error) {
+      console.error('Error loading selected multi-service worker details:', error)
+    } finally {
+      setWorkerDetailsLoading(false)
+    }
+  };
+
+  useEffect(() => {
+    fetchMultiServiceWorkers();
+  }, []);
+
+
+
   useEffect(() => {
     fetchData()
+    fetchMultiServiceWorkers();
   }, [])
 
   const fetchData = async () => {
@@ -362,7 +410,7 @@ const DashboardUser = () => {
           >
             Request Work
           </button>
-          <button 
+          <button
             onClick={handleLogout}
             className="rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-red-600"
           >
@@ -461,14 +509,13 @@ const DashboardUser = () => {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        req.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${req.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                         req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
-                        req.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                        req.status === 'completed' ? 'bg-slate-100 text-slate-700' :
-                        req.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                        'bg-slate-100 text-slate-600'
-                      } capitalize`}>
+                          req.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                            req.status === 'completed' ? 'bg-slate-100 text-slate-700' :
+                              req.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                'bg-slate-100 text-slate-600'
+                        } capitalize`}>
                         {req.status === 'in_progress' ? 'In Progress' : req.status}
                       </span>
                       {req.status === 'in_progress' && !req.final_price && (
@@ -483,7 +530,7 @@ const DashboardUser = () => {
                         {formatPrice(req.final_price || req.budget)}
                       </span>
                       {req.applications && req.applications.length > 0 && !req.worker_id && (
-                        <button 
+                        <button
                           onClick={() => handleViewApplications(req)}
                           className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-600"
                         >
@@ -491,7 +538,7 @@ const DashboardUser = () => {
                         </button>
                       )}
                       {req.worker && (
-                        <button 
+                        <button
                           onClick={() => {
                             setSelectedWorker(req.worker)
                             setShowWorkerProfile(true)
@@ -521,47 +568,95 @@ const DashboardUser = () => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">Recommended Workers</h2>
-            <p className="text-xs text-slate-500">
-              Top 10 workers this month{selectedSkill ? ` for "${selectedSkill}"` : ''}.
-            </p>
-            <div className="mt-4 space-y-3">
-              {loading || workersLoading ? (
-                <div className="text-center py-4 text-slate-500 text-sm">Loading...</div>
-              ) : workers.length === 0 ? (
-                <div className="text-center py-4 text-slate-500 text-sm">No workers found</div>
-              ) : (
-                workers.map((worker) => (
-                  <div
-                    key={worker.id}
-                    onClick={() => openWorkerProfile(worker)}
-                    className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 transition hover:border-sky-300 hover:bg-sky-50"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{worker.name || 'Unknown'}</p>
-                      <p className="text-xs text-slate-500">
-                        {worker.services?.slice(0, 2).map(s => s.name).join(', ') || 'Worker'}
-                      </p>
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">Recommended Workers</h2>
+              <p className="text-xs text-slate-500">
+                Top 10 workers this month{selectedSkill ? ` for "${selectedSkill}"` : ''}.
+              </p>
+              <div className="mt-4 space-y-3">
+                {loading || workersLoading ? (
+                  <div className="text-center py-4 text-slate-500 text-sm">Loading...</div>
+                ) : workers.length === 0 ? (
+                  <div className="text-center py-4 text-slate-500 text-sm">No workers found</div>
+                ) : (
+                  workers.map((worker) => (
+                    <div
+                      key={worker.id}
+                      onClick={() => openWorkerProfile(worker)}
+                      className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 transition hover:border-sky-300 hover:bg-sky-50"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{worker.name || 'Unknown'}</p>
+                        <p className="text-xs text-slate-500">
+                          {worker.services?.slice(0, 2).map(s => s.name).join(', ') || 'Worker'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-500">{worker.services?.length || 0} services</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500">{worker.services?.length || 0} services</p>
-                    </div>
-                  </div>
-                ))
+                  ))
+                )}
+              </div>
+              {workers.length > 0 && (
+                <button
+                  onClick={() => {
+                    setSelectedWorker(workers[0])
+                    setShowWorkerProfile(true)
+                  }}
+                  className="mt-4 w-full rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-600"
+                >
+                  Book a worker
+                </button>
               )}
             </div>
-            {workers.length > 0 && (
-              <button 
-                onClick={() => {
-                  setSelectedWorker(workers[0])
-                  setShowWorkerProfile(true)
-                }}
-                className="mt-4 w-full rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-600"
-              >
-                Book a worker
-              </button>
-            )}
+
+
+            <section className="bg-white rounded-2xl shadow-md p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-slate-800">
+                  Mutli Service Booking
+                </h2>
+                <span className="text-xs text-slate-500">
+                  {multiServiceWorkers.length} worker(s)
+                </span>
+              </div>
+
+              {multiServiceLoading ? (
+                <p className="text-sm text-slate-500">Loading workers...</p>
+              ) : multiServiceWorkers.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  No workers offering multiple services yet.
+                </p>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-3">
+                  {multiServiceWorkers.map((worker) => (
+                    <button
+                      key={worker.worker_id}
+                      type="button"
+                      onClick={() => handleSelectWorker(worker)}
+                      className={`text-left border rounded-xl p-3 hover:border-emerald-400 transition ${selectedWorker && selectedWorker.worker_id === worker.worker_id
+                        ? 'border-emerald-500 bg-emerald-50'
+                        : 'border-slate-200 bg-white'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-slate-800">
+                          {worker.name || 'Unknown'}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {worker.services?.length || 0} services
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {worker.services?.slice(0, 3).map((s) => s.name).join(', ') || '—'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         </section>
 
@@ -578,7 +673,7 @@ const DashboardUser = () => {
                   ✕
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-500">Email</p>
@@ -632,7 +727,7 @@ const DashboardUser = () => {
                   )}
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button 
+                  <button
                     onClick={handleBookWorker}
                     className="flex-1 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-600"
                   >
@@ -671,7 +766,7 @@ const DashboardUser = () => {
                   ✕
                 </button>
               </div>
-              
+
               <form onSubmit={handleBookingSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Job Title *</label>
@@ -764,7 +859,7 @@ const DashboardUser = () => {
                   ✕
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 {selectedJobRequest.applications && selectedJobRequest.applications.length > 0 ? (
                   selectedJobRequest.applications.map((application) => (
@@ -773,11 +868,10 @@ const DashboardUser = () => {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <h3 className="text-lg font-semibold text-slate-900">{application.worker?.name || 'Unknown Worker'}</h3>
-                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                              application.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
+                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${application.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
                               application.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                              'bg-sky-100 text-sky-700'
-                            }`}>
+                                'bg-sky-100 text-sky-700'
+                              }`}>
                               {application.status}
                             </span>
                           </div>
@@ -841,8 +935,8 @@ const DashboardUser = () => {
                     {userLocation?.address
                       ? `Your location: ${userLocation.address}`
                       : userLocation
-                      ? `Your coordinates: ${userLocation.latitude.toFixed(3)}, ${userLocation.longitude.toFixed(3)}`
-                      : 'Looking up your location and nearby workers...'}
+                        ? `Your coordinates: ${userLocation.latitude.toFixed(3)}, ${userLocation.longitude.toFixed(3)}`
+                        : 'Looking up your location and nearby workers...'}
                   </p>
                 </div>
                 <button

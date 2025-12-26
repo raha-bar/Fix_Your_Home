@@ -66,12 +66,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('worker')->group(function () {
         Route::get('/profile', [WorkerController::class, 'getProfile']);
         Route::get('/available-jobs', [WorkerController::class, 'getAvailableJobs']);
-        Route::get('/my-jobs', [WorkerController::class, 'getMyJobs']);
+        Route::get('/my-jobs', [WorkerController::class, 'getMyJobs']);    
         Route::post('/jobs/{jobRequestId}/apply', [WorkerController::class, 'applyForJob']);
         Route::post('/jobs/{jobRequestId}/accept', [WorkerController::class, 'acceptJob']);
         Route::post('/jobs/{jobRequestId}/start', [WorkerController::class, 'startJob']);
         Route::post('/jobs/{jobRequestId}/complete', [WorkerController::class, 'completeJob']);
         Route::post('/location', [WorkerController::class, 'updateLocation']);
+
     });
 
     // User routes
@@ -85,6 +86,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Nearest workers (for authenticated users)
     Route::get('/workers/nearest', [WorkerController::class, 'getNearestWorkers']);
     Route::post('/user/jobs/{jobRequestId}/pay', [UserController::class, 'payForJob']);
+    Route::get('/workers/multi-service', [UserController::class, 'getMultiServiceWorkers']);
 });
 
 /**

@@ -8,6 +8,7 @@ use App\Models\Worker;
 use App\Models\Payment;
 use App\Models\WorkerApplication;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class UserController extends Controller
 {
@@ -137,6 +138,24 @@ class UserController extends Controller
             'message' => 'Job request deleted successfully',
         ]);
     }
+
+    public function getMultiServiceWorkers(Request $request): JsonResponse
+    {
+        $limit = (int) $request->input('limit', 10);
+
+        $workers = Worker::with('services')
+            ->has('services', '>=', 2)
+            ->orderBy('worker_id', 'asc')
+            ->limit($limit)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $workers,
+        ]);
+    }
+
+
 
     /**
      * Accept a worker application for a job request
