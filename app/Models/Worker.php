@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class Worker extends Model
 {
     protected $primaryKey = 'worker_id';
+
     public $timestamps = false;
 
-    protected $fillable = ['worker_id', 'name', 'photo', 'email', 'phone', 'description', 'latitude', 'longitude'];
+    protected $fillable = ['worker_id', 'name', 'photo', 'email', 'phone', 'description', 'latitude', 'longitude', 'approval_status'];
 
     protected $appends = ['id'];
 

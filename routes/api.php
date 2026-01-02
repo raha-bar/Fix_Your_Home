@@ -1,13 +1,13 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\ServiceController;
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\WorkerController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkerController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -26,14 +26,14 @@ use App\Http\Controllers\UserController;
  * - login
  * - password reset flow
  */
-Route::post('/register/user',   [AuthController::class, 'registerUser']);
+Route::post('/register/user', [AuthController::class, 'registerUser']);
 Route::post('/register/worker', [AuthController::class, 'registerWorker']);
-Route::post('/login',           [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login']);
 
 // password reset (Laravel password broker)
 Route::post('/forgot-password', [PasswordController::class, 'sendResetLinkEmail'])
     ->name('password.email');
-Route::post('/reset-password',  [PasswordController::class, 'reset'])
+Route::post('/reset-password', [PasswordController::class, 'reset'])
     ->name('password.update');
 
 /**
@@ -60,13 +60,16 @@ Route::middleware('auth:sanctum')->group(function () {
     // Admin routes
     Route::prefix('admin')->group(function () {
         Route::get('/stats', [AdminController::class, 'getStats']);
+        Route::get('/pending-approvals', [AdminController::class, 'getPendingApprovals']);
+        Route::post('/workers/{workerId}/approve', [AdminController::class, 'approveWorker']);
+        Route::post('/workers/{workerId}/reject', [AdminController::class, 'rejectWorker']);
     });
 
     // Worker routes
     Route::prefix('worker')->group(function () {
         Route::get('/profile', [WorkerController::class, 'getProfile']);
         Route::get('/available-jobs', [WorkerController::class, 'getAvailableJobs']);
-        Route::get('/my-jobs', [WorkerController::class, 'getMyJobs']);    
+        Route::get('/my-jobs', [WorkerController::class, 'getMyJobs']);
         Route::post('/jobs/{jobRequestId}/apply', [WorkerController::class, 'applyForJob']);
         Route::post('/jobs/{jobRequestId}/accept', [WorkerController::class, 'acceptJob']);
         Route::post('/jobs/{jobRequestId}/start', [WorkerController::class, 'startJob']);

@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuthAccount;
-use App\Models\Worker;
 use App\Models\Customer;
-use App\Models\Service;
 use App\Models\JobRequest;
+use App\Models\Service;
+use App\Models\Worker;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
@@ -23,12 +21,14 @@ class AdminController extends Controller
         $totalUsers = Customer::count();
         $totalWorkers = Worker::count();
         $totalServices = Service::distinct('service')->count('service');
-        
-        // Get active workers (workers with at least one service)
-        $activeWorkers = Worker::whereHas('services')->count();
-        
-        // Get pending approvals (workers without services - can be used for approval logic)
-        $pendingApprovals = Worker::whereDoesntHave('services')->count();
+
+        // Get active workers (approved workers with at least one service)
+        $activeWorkers = Worker::where('approval_status', 'approved')
+            ->whereHas('services')
+            ->count();
+
+        // Get pending approvals (workers waiting for admin approval)
+        $pendingApprovals = Worker::where('approval_status', 'pending')->count();
 
         // Job and income metrics from job_requests
         $totalRequests = JobRequest::count();
@@ -73,5 +73,84 @@ class AdminController extends Controller
             'financial' => $financial,
         ]);
     }
-}
 
+    /**
+     * Get pending worker approvals
+     */
+    public function getPendingApprovals(Request $request)
+    {
+        // Ensure user is admin
+        if ($request->user()->type !== 'admin') {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $perPage = $request->input('per_page', 15);
+
+        $pendingWorkers = Worker::where('approval_status', 'pending')
+            ->with(['services', 'auth'])
+            ->orderBy('worker_id', 'desc')
+            ->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $pendingWorkers,
+        ]);
+    }
+
+    /**
+     * Approve a worker
+     */
+    public function approveWorker(Request $request, int $workerId)
+    {
+        // Ensure user is admin
+        if ($request->user()->type !== 'admin') {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $worker = Worker::where('worker_id', $workerId)
+            ->where('approval_status', 'pending')
+            ->first();
+
+        if (! $worker) {
+            return response()->json(['message' => 'Worker not found or already processed'], 404);
+        }
+
+        $worker->approval_status = 'approved';
+        $worker->save();
+
+        $worker->load(['services', 'auth']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Worker approved successfully',
+            'data' => $worker,
+        ]);
+    }
+
+    /**
+     * Reject a worker
+     */
+    public function rejectWorker(Request $request, int $workerId)
+    {
+        // Ensure user is admin
+        if ($request->user()->type !== 'admin') {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $worker = Worker::where('worker_id', $workerId)
+            ->where('approval_status', 'pending')
+            ->first();
+
+        if (! $worker) {
+            return response()->json(['message' => 'Worker not found or already processed'], 404);
+        }
+
+        $worker->approval_status = 'rejected';
+        $worker->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Worker rejected successfully',
+        ]);
+    }
+}

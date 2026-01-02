@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Worker;
-use App\Models\Service;
 use App\Models\JobRequest;
+use App\Models\Service;
+use App\Models\Worker;
 use App\Models\WorkerApplication;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class WorkerController extends Controller
 {
@@ -18,7 +18,7 @@ class WorkerController extends Controller
     {
         $perPage = $request->input('per_page', 15);
 
-        $query = Worker::with('services');
+        $query = Worker::where('approval_status', 'approved')->with('services');
 
         // Optional filter by service / skill name
         $service = $request->input('service');
@@ -44,7 +44,8 @@ class WorkerController extends Controller
     {
         $limit = (int) $request->input('limit', 10);
 
-        $workers = Worker::with('services')
+        $workers = Worker::where('approval_status', 'approved')
+            ->with('services')
             ->withCount([
                 'jobRequests as monthly_jobs_count' => function ($query) {
                     $query->whereBetween('created_at', [
@@ -81,7 +82,7 @@ class WorkerController extends Controller
 
         $worker = Worker::where('worker_id', $auth->id)->first();
 
-        if (!$worker) {
+        if (! $worker) {
             return response()->json(['message' => 'Worker profile not found'], 404);
         }
 
@@ -112,9 +113,10 @@ class WorkerController extends Controller
         $limit = isset($data['limit']) ? (int) $data['limit'] : 5;
 
         // Haversine formula to approximate distance in kilometers
-        $haversine = "(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude))))";
+        $haversine = '(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude))))';
 
         $workers = Worker::query()
+            ->where('approval_status', 'approved')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->select('*')
@@ -134,17 +136,19 @@ class WorkerController extends Controller
      */
     public function show($id): JsonResponse
     {
-        $worker = Worker::with([
-            'services',
-            'jobRequests' => function ($query) {
-                $query->whereIn('status', ['accepted', 'in_progress', 'completed'])
-                    ->with('customer')
-                    ->orderBy('created_at', 'desc')
-                    ->limit(10);
-            },
-        ])->find($id);
+        $worker = Worker::where('approval_status', 'approved')
+            ->with([
+                'services',
+                'jobRequests' => function ($query) {
+                    $query->whereIn('status', ['accepted', 'in_progress', 'completed'])
+                        ->with('customer')
+                        ->orderBy('created_at', 'desc')
+                        ->limit(10);
+                },
+            ])
+            ->find($id);
 
-        if (!$worker) {
+        if (! $worker) {
             return response()->json([
                 'success' => false,
                 'message' => 'Worker not found',
@@ -163,14 +167,14 @@ class WorkerController extends Controller
     public function getProfile(Request $request): JsonResponse
     {
         $auth = $request->user();
-        
+
         if ($auth->type !== 'worker') {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $worker = Worker::with('services')->where('worker_id', $auth->id)->first();
 
-        if (!$worker) {
+        if (! $worker) {
             return response()->json([
                 'success' => false,
                 'message' => 'Worker profile not found',
@@ -189,15 +193,24 @@ class WorkerController extends Controller
     public function getAvailableJobs(Request $request): JsonResponse
     {
         $auth = $request->user();
-        
+
         if ($auth->type !== 'worker') {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $worker = Worker::where('worker_id', $auth->id)->first();
-        
-        if (!$worker) {
+
+        if (! $worker) {
             return response()->json(['message' => 'Worker profile not found'], 404);
+        }
+
+        // Check if worker is approved
+        if ($worker->approval_status !== 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account is pending approval. Please wait for admin approval.',
+                'approval_status' => $worker->approval_status,
+            ], 403);
         }
 
         $perPage = $request->input('per_page', 15);
@@ -231,14 +244,14 @@ class WorkerController extends Controller
     public function getMyJobs(Request $request): JsonResponse
     {
         $auth = $request->user();
-        
+
         if ($auth->type !== 'worker') {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $worker = Worker::where('worker_id', $auth->id)->first();
-        
-        if (!$worker) {
+
+        if (! $worker) {
             return response()->json(['message' => 'Worker profile not found'], 404);
         }
 
@@ -263,15 +276,23 @@ class WorkerController extends Controller
     public function applyForJob(Request $request, int $jobRequestId): JsonResponse
     {
         $auth = $request->user();
-        
+
         if ($auth->type !== 'worker') {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $worker = Worker::where('worker_id', $auth->id)->first();
-        
-        if (!$worker) {
+
+        if (! $worker) {
             return response()->json(['message' => 'Worker profile not found'], 404);
+        }
+
+        // Check if worker is approved
+        if ($worker->approval_status !== 'approved') {
+            return response()->json([
+                'message' => 'Your account is pending approval. You cannot apply for jobs until approved by admin.',
+                'approval_status' => $worker->approval_status,
+            ], 403);
         }
 
         $data = $request->validate([
@@ -284,7 +305,7 @@ class WorkerController extends Controller
             ->where('status', 'pending')
             ->first();
 
-        if (!$jobRequest) {
+        if (! $jobRequest) {
             return response()->json(['message' => 'Job request not found or not available'], 404);
         }
 
@@ -329,7 +350,7 @@ class WorkerController extends Controller
 
         $worker = Worker::where('worker_id', $auth->id)->first();
 
-        if (!$worker) {
+        if (! $worker) {
             return response()->json(['message' => 'Worker profile not found'], 404);
         }
 
@@ -339,7 +360,7 @@ class WorkerController extends Controller
             ->where('status', 'pending')
             ->first();
 
-        if (!$jobRequest) {
+        if (! $jobRequest) {
             return response()->json(['message' => 'Job not found or cannot be accepted'], 404);
         }
 
@@ -370,7 +391,7 @@ class WorkerController extends Controller
 
         $worker = Worker::where('worker_id', $auth->id)->first();
 
-        if (!$worker) {
+        if (! $worker) {
             return response()->json(['message' => 'Worker profile not found'], 404);
         }
 
@@ -379,7 +400,7 @@ class WorkerController extends Controller
             ->where('status', 'accepted')
             ->first();
 
-        if (!$jobRequest) {
+        if (! $jobRequest) {
             return response()->json(['message' => 'Job not found or cannot be started'], 404);
         }
 
@@ -408,7 +429,7 @@ class WorkerController extends Controller
 
         $worker = Worker::where('worker_id', $auth->id)->first();
 
-        if (!$worker) {
+        if (! $worker) {
             return response()->json(['message' => 'Worker profile not found'], 404);
         }
 
@@ -421,7 +442,7 @@ class WorkerController extends Controller
             ->whereIn('status', ['accepted', 'in_progress'])
             ->first();
 
-        if (!$jobRequest) {
+        if (! $jobRequest) {
             return response()->json(['message' => 'Job not found or cannot be completed'], 404);
         }
 
@@ -442,4 +463,3 @@ class WorkerController extends Controller
         ]);
     }
 }
-

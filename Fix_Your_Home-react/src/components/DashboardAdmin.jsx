@@ -8,6 +8,10 @@ const DashboardAdmin = () => {
   const navigate = useNavigate()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [pendingApprovals, setPendingApprovals] = useState([])
+  const [approvalsLoading, setApprovalsLoading] = useState(false)
+  const [showApprovalsModal, setShowApprovalsModal] = useState(false)
+  const [processingWorkerId, setProcessingWorkerId] = useState(null)
 
   const handleLogout = async () => {
     await logout()
@@ -16,6 +20,7 @@ const DashboardAdmin = () => {
 
   useEffect(() => {
     fetchAdminStats()
+    fetchPendingApprovals()
   }, [])
 
   const fetchAdminStats = async () => {
@@ -27,6 +32,57 @@ const DashboardAdmin = () => {
       console.error('Error fetching admin stats:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchPendingApprovals = async () => {
+    try {
+      setApprovalsLoading(true)
+      const response = await api.getPendingApprovals({ per_page: 50 })
+      const approvalsData = response.data?.data?.data || (Array.isArray(response.data?.data) ? response.data.data : [])
+      setPendingApprovals(approvalsData)
+    } catch (error) {
+      console.error('Error fetching pending approvals:', error)
+    } finally {
+      setApprovalsLoading(false)
+    }
+  }
+
+  const handleApproveWorker = async (workerId) => {
+    if (!window.confirm('Are you sure you want to approve this worker?')) {
+      return
+    }
+
+    setProcessingWorkerId(workerId)
+    try {
+      await api.approveWorker(workerId)
+      await fetchPendingApprovals()
+      await fetchAdminStats()
+      alert('Worker approved successfully!')
+    } catch (error) {
+      console.error('Error approving worker:', error)
+      alert(error.response?.data?.message || 'Failed to approve worker')
+    } finally {
+      setProcessingWorkerId(null)
+    }
+  }
+
+  const handleRejectWorker = async (workerId) => {
+    if (!window.confirm('Are you sure you want to reject this worker? This action cannot be undone.')) {
+      return
+    }
+
+    setProcessingWorkerId(workerId)
+    try {
+      await api.rejectWorker(workerId)
+      await fetchPendingApprovals()
+      await fetchAdminStats()
+      alert('Worker rejected successfully!')
+    } catch (error) {
+      console.error('Error rejecting worker:', error)
+      alert(error.response?.data?.message || 'Failed to reject worker')
+    } finally {
+      setProcessingWorkerId(null)
     }
   }
 
@@ -154,8 +210,11 @@ const DashboardAdmin = () => {
                 </div>
               ))}
             </div>
-            <button className="w-full rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-indigo-600">
-              Review Pending Items
+            <button 
+              onClick={() => setShowApprovalsModal(true)}
+              className="w-full rounded-full bg-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-indigo-600"
+            >
+              Review Pending Approvals ({stats?.kpis?.pending_approvals || 0})
             </button>
           </div>
         </section>
@@ -202,6 +261,115 @@ const DashboardAdmin = () => {
             </div>
           </div>
         </section>
+
+        {/* Pending Approvals Modal */}
+        {showApprovalsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowApprovalsModal(false)}>
+            <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">Pending Worker Approvals</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {pendingApprovals.length} worker(s) waiting for approval
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowApprovalsModal(false)}
+                  className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {approvalsLoading ? (
+                  <div className="text-center py-8 text-slate-500">Loading pending approvals...</div>
+                ) : pendingApprovals.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500">No pending approvals</div>
+                ) : (
+                  pendingApprovals.map((worker) => (
+                    <div key={worker.worker_id || worker.id} className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <h3 className="text-lg font-semibold text-slate-900">{worker.name || 'Unknown Worker'}</h3>
+                            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                              Pending Approval
+                            </span>
+                          </div>
+                          
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <p className="text-xs font-semibold text-slate-500">Email</p>
+                              <p className="text-sm text-slate-900">{worker.email || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-500">Phone</p>
+                              <p className="text-sm text-slate-900">{worker.phone || 'N/A'}</p>
+                            </div>
+                            {worker.description && (
+                              <div className="sm:col-span-2">
+                                <p className="text-xs font-semibold text-slate-500">Description</p>
+                                <p className="text-sm text-slate-700">{worker.description}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {worker.services && worker.services.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-slate-500 mb-2">Services Offered</p>
+                              <div className="flex flex-wrap gap-2">
+                                {worker.services.map((service, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700"
+                                  >
+                                    {service.name || service.service || service}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {worker.photo && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-slate-500 mb-2">Photo</p>
+                              <img
+                                src={worker.photo.startsWith('http') ? worker.photo : `/storage/${worker.photo}`}
+                                alt={worker.name}
+                                className="h-24 w-24 rounded-lg object-cover border border-slate-200"
+                                onError={(e) => {
+                                  e.target.style.display = 'none'
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col gap-2 lg:w-48">
+                          <button
+                            onClick={() => handleApproveWorker(worker.worker_id || worker.id)}
+                            disabled={processingWorkerId === (worker.worker_id || worker.id)}
+                            className="w-full rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {processingWorkerId === (worker.worker_id || worker.id) ? 'Processing...' : 'Approve'}
+                          </button>
+                          <button
+                            onClick={() => handleRejectWorker(worker.worker_id || worker.id)}
+                            disabled={processingWorkerId === (worker.worker_id || worker.id)}
+                            className="w-full rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {processingWorkerId === (worker.worker_id || worker.id) ? 'Processing...' : 'Reject'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

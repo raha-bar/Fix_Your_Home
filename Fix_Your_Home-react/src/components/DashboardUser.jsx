@@ -391,25 +391,15 @@ const DashboardUser = () => {
       <header className="max-w-6xl mx-auto mt-8 flex flex-col gap-4 rounded-3xl border border-slate-100 bg-white/80 px-6 py-4 shadow-md backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div>
           <a href="/" className="logo" aria-label="Fix Your Home" />
+        </div>
+        <div>
           <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-sky-500">Welcome back</p>
           <h1 className="text-2xl font-bold text-slate-900">User Dashboard</h1>
           <p className="text-sm text-slate-500">Manage requests, browse workers, track progress.</p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-          <input
-            type="search"
-            placeholder="Search workers or services..."
-            className="w-full min-w-[240px] rounded-full border border-slate-200 px-4 py-2 text-sm shadow-inner focus:border-sky-300 focus:outline-none sm:w-64"
-          />
-          <button
-            onClick={() => {
-              setSelectedWorker(null)
-              setShowBookingForm(true)
-            }}
-            className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-sky-600"
-          >
-            Request Work
-          </button>
+          
+     
           <button
             onClick={handleLogout}
             className="rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-red-600"

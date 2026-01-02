@@ -15,6 +15,9 @@ const api = {
 
   // Admin endpoints
   getAdminStats: () => axios.get('/api/admin/stats'),
+  getPendingApprovals: (params = {}) => axios.get('/api/admin/pending-approvals', { params }),
+  approveWorker: (workerId) => axios.post(`/api/admin/workers/${workerId}/approve`),
+  rejectWorker: (workerId) => axios.post(`/api/admin/workers/${workerId}/reject`),
 
   // Worker endpoints
   getWorkers: (params = {}) => axios.get('/api/workers', { params }),
