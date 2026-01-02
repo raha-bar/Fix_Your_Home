@@ -13,6 +13,7 @@ use App\Models\Worker;
 use App\Models\Service;
 use App\Models\JobRequest;
 use App\Models\Payment;
+use App\Models\Reward;
 
 class RealisticDataSeeder extends Seeder
 {
@@ -107,6 +108,85 @@ class RealisticDataSeeder extends Seeder
             'pin' => '0000',
             'status' => 'paid',
         ]);
+
+        // Create completed jobs for customer1 so payments can reference real job_request ids
+        $jobA = JobRequest::create([
+            'customer_id' => $c1->customer_id,
+            'worker_id' => $w2->worker_id,
+            'title' => 'Seed job A',
+            'description' => 'Placeholder job for seeding payments',
+            'budget' => 450.00,
+            'final_price' => 450.00,
+            'status' => 'completed',
+            'completed_at' => Carbon::now()->subDays(10),
+        ]);
+
+        Payment::create([
+            'job_request_id' => $jobA->id,
+            'customer_id' => $c1->customer_id,
+            'worker_id' => $w2->worker_id,
+            'amount' => 450.00,
+            'method' => 'card',
+            'account_number' => '4242424242424242',
+            'pin' => '0000',
+            'status' => 'paid',
+        ]);
+
+        $jobB = JobRequest::create([
+            'customer_id' => $c1->customer_id,
+            'worker_id' => $w3->worker_id,
+            'title' => 'Seed job B',
+            'description' => 'Placeholder job for seeding payments',
+            'budget' => 430.00,
+            'final_price' => 430.00,
+            'status' => 'completed',
+            'completed_at' => Carbon::now()->subDays(8),
+        ]);
+
+        Payment::create([
+            'job_request_id' => $jobB->id,
+            'customer_id' => $c1->customer_id,
+            'worker_id' => $w3->worker_id,
+            'amount' => 430.00,
+            'method' => 'card',
+            'account_number' => '4242424242424242',
+            'pin' => '0000',
+            'status' => 'paid',
+        ]);
+
+        // Opt-in customer1 for rewards and create a preview reward
+        $c1->rewards_opt_in = true;
+        $c1->save();
+
+        Reward::create([
+            'customer_id' => $c1->customer_id,
+            'percent' => 20,
+            'earned_at' => Carbon::now(),
+            'expires_at' => Carbon::now()->addMonths(6),
+        ]);
+
+        // Add a pending job for c1 to try applying a reward
+        $jobForReward = JobRequest::create([
+            'customer_id' => $c1->customer_id,
+            'worker_id' => null,
+            'title' => 'Future plumbing maintenance (eligible for reward)',
+            'description' => 'Schedule maintenance and save using earned reward',
+            'budget' => 200.00,
+            'status' => 'pending',
+            'scheduled_at' => Carbon::now()->addDays(7),
+        ]);
+
+        // Apply the preview reward to this pending job so it's visible for demos
+        $rewardToUse = Reward::where('customer_id', $c1->customer_id)->whereNull('used_at')->first();
+        if ($rewardToUse) {
+            $jobForReward->discount_percent = $rewardToUse->percent;
+            $jobForReward->discounted_price = round(($jobForReward->budget * (100 - $rewardToUse->percent)) / 100, 2);
+            $jobForReward->save();
+
+            $rewardToUse->used_at = Carbon::now();
+            $rewardToUse->used_job_request_id = $jobForReward->id;
+            $rewardToUse->save();
+        }
 
         // In progress (worker started)
         $job2 = JobRequest::create([

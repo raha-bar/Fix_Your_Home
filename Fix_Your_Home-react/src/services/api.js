@@ -41,6 +41,11 @@ const api = {
 
   // Ratings
   rateJob: (jobRequestId, data) => axios.post(`/api/user/job-requests/${jobRequestId}/rating`, data),
+
+  // Rewards
+  getAvailableRewards: () => axios.get('/api/user/rewards/available'),
+  setRewardsOptIn: (optIn) => axios.post('/api/user/rewards/opt-in', { opt_in: !!optIn }),
+
 };
 
 export default api;

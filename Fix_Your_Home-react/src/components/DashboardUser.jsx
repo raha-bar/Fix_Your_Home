@@ -20,7 +20,10 @@ const DashboardUser = () => {
     description: '',
     budget: '',
     scheduled_at: '',
+    use_reward: false,
   })
+
+  const [availableReward, setAvailableReward] = useState(null)
   const [bookingLoading, setBookingLoading] = useState(false)
   const [selectedJobRequest, setSelectedJobRequest] = useState(null)
   const [showApplicationsModal, setShowApplicationsModal] = useState(false)
@@ -67,9 +70,13 @@ const DashboardUser = () => {
         payload.worker_id = selectedWorker.worker_id || selectedWorker.id
       }
 
+      if (bookingForm.use_reward) {
+        payload.use_reward = true
+      }
+
       const response = await api.createJobRequest(payload)
 
-      // Refresh job requests
+      // Refresh job requests and rewards
       await fetchData()
 
       // Close modals and reset form
@@ -81,6 +88,7 @@ const DashboardUser = () => {
         description: '',
         budget: '',
         scheduled_at: '',
+        use_reward: false,
       })
 
       alert('Job request created successfully!')
@@ -261,6 +269,15 @@ const DashboardUser = () => {
         await fetchWorkers(selectedSkill)
       } else {
         await fetchTopWorkers()
+      }
+
+      // Check for available rewards for the current user
+      try {
+        const r = await api.getAvailableRewards()
+        setAvailableReward(r.data?.data || null)
+      } catch (err) {
+        console.error('Error fetching available rewards:', err)
+        setAvailableReward(null)
       }
 
       // Fetch job requests - handle errors gracefully (may not exist in simplified schema)
@@ -513,17 +530,7 @@ const DashboardUser = () => {
                     </div>
                   ))
                 )}
-              {workers.length > 0 && (
-                <button
-                  onClick={() => {
-                    setSelectedWorker(workers[0])
-                    setShowWorkerProfile(true)
-                  }}
-                  className="mt-4 w-full rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-600"
-                >
-                  Book a worker
-                </button>
-              )}
+
             </div>
 
             <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -599,9 +606,19 @@ const DashboardUser = () => {
                           Pay Now
                         </button>
                       )}
-                      <span className="text-sm font-semibold text-slate-800">
-                        {formatPrice(req.final_price || req.budget)}
-                      </span>
+                      <div className="text-sm font-semibold text-slate-800">
+                        {req.discounted_price ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 line-through">{formatPrice(req.budget)}</span>
+                            <span className="text-lg font-bold text-emerald-600">{formatPrice(req.discounted_price)}</span>
+                            {req.discount_percent && (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">-{req.discount_percent}%</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span>{formatPrice(req.final_price || req.budget)}</span>
+                        )}
+                      </div>
                       {req.applications && req.applications.length > 0 && !req.worker_id && (
                         <button
                           onClick={() => handleViewApplications(req)}
@@ -788,7 +805,12 @@ const DashboardUser = () => {
                           </div>
 
                           {job.customer && (
-                            <p className="mt-1 text-[11px] text-slate-500">For: {job.customer.name}</p>
+                            <>
+                              <p className="mt-1 text-[11px] text-slate-500">For: {job.customer.name}</p>
+                              {job.discounted_price && (
+                                <p className="mt-1 text-[11px] text-emerald-600">Discount applied: {job.discount_percent}% — {formatPrice(job.discounted_price)}</p>
+                              )}
+                            </>
                           )}
                         </div>
                       ))}
@@ -927,6 +949,52 @@ const DashboardUser = () => {
                   />
                 </div>
 
+                {availableReward?.available && (
+                  <div className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <strong>Reward available:</strong> {availableReward.count} × {availableReward.percent}% off (expires in 6 months)
+                        <div className="text-xs text-amber-600 mt-1">Check to apply to this request (opt-in)</div>
+                      </div>
+                      <div>
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={bookingForm.use_reward}
+                            onChange={(e) => setBookingForm({ ...bookingForm, use_reward: e.target.checked })}
+                            className="rounded border-slate-200"
+                          />
+                          <span className="text-sm text-amber-700">Apply reward</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!availableReward?.opt_in && (
+                  <div className="mt-3 text-xs text-slate-600">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={availableReward?.opt_in || false}
+                        onChange={async (e) => {
+                          try {
+                            await api.setRewardsOptIn(e.target.checked)
+                            const r = await api.getAvailableRewards()
+                            setAvailableReward(r.data?.data || null)
+                            alert(e.target.checked ? 'You have opted into rewards' : 'You have opted out of rewards')
+                          } catch (err) {
+                            console.error('Error setting opt-in:', err)
+                            alert('Failed to update preference')
+                          }
+                        }}
+                        className="rounded border-slate-200"
+                      />
+                      <span>Opt-in to earn rewards (20% off every $1000 of completed payments, expires in 6 months)</span>
+                    </label>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
                   <textarea
@@ -950,6 +1018,12 @@ const DashboardUser = () => {
                       className="w-full rounded-lg border border-slate-200 px-4 py-2 focus:border-sky-300 focus:outline-none"
                       placeholder="0.00"
                     />
+
+                    {availableReward?.available && bookingForm.use_reward && bookingForm.budget && (
+                      <p className="mt-2 text-sm text-emerald-700">
+                        Estimated after discount: <strong>{formatPrice(((parseFloat(bookingForm.budget) || 0) * (100 - (availableReward.percent || 20))) / 100)}</strong>
+                      </p>
+                    )}
                   </div>
 
                   <div>

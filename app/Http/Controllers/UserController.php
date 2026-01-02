@@ -7,6 +7,7 @@ use App\Models\JobRequest;
 use App\Models\Worker;
 use App\Models\Payment;
 use App\Models\WorkerApplication;
+use App\Models\Reward;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -91,6 +92,33 @@ class UserController extends Controller
             'status' => 'pending',
             'scheduled_at' => $data['scheduled_at'] ?? null,
         ]);
+
+        // Optionally apply a reward if requested
+        if (!empty($data['use_reward'])) {
+            // Find an available reward
+            $reward = \App\Models\Reward::where('customer_id', $customer->id)
+                ->whereNull('used_at')
+                ->where('expires_at', '>', now())
+                ->oldest('earned_at')
+                ->first();
+
+            if (! $reward) {
+                return response()->json(['message' => 'No available reward to apply'], 422);
+            }
+
+            if ($jobRequest->budget === null) {
+                return response()->json(['message' => 'Budget required to apply reward'], 422);
+            }
+
+            $jobRequest->discount_percent = $reward->percent;
+            $jobRequest->discounted_price = round(($jobRequest->budget * (100 - $reward->percent)) / 100, 2);
+            $jobRequest->save();
+
+            // Mark reward used
+            $reward->used_at = now();
+            $reward->used_job_request_id = $jobRequest->id;
+            $reward->save();
+        }
 
         $jobRequest->load(['applications.worker', 'applications.worker.services']);
 
@@ -268,6 +296,14 @@ class UserController extends Controller
         $job->final_price  = $amount;
         $job->save();
 
+        // After successful payment, award rewards if the customer has opted in
+        try {
+            $this->awardRewardsIfEligible($customer);
+        } catch (\Exception $e) {
+            // Do not fail payment flow due to reward errors; just log
+            \Log::error('Reward awarding failed: ' . $e->getMessage());
+        }
+
         $job->load(['worker', 'customer']);
 
         return response()->json([
@@ -324,6 +360,93 @@ class UserController extends Controller
             'success' => true,
             'message' => 'Rating submitted',
             'data' => $job,
+        ]);
+    }
+
+    /**
+     * Return available rewards for the current authenticated customer
+     */
+    public function getAvailableRewards(Request $request): JsonResponse
+    {
+        $auth = $request->user();
+        if ($auth->type !== 'user') {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $customer = Customer::where('customer_id', $auth->id)->first();
+        if (!$customer) {
+            return response()->json(['message' => 'Customer profile not found'], 404);
+        }
+
+        $available = Reward::where('customer_id', $customer->id)
+            ->whereNull('used_at')
+            ->where('expires_at', '>', now())
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'count' => $available->count(),
+                'percent' => $available->first()?->percent ?? 20,
+                'available' => $available->count() > 0,
+                'opt_in' => (bool) $customer->rewards_opt_in,
+            ],
+        ]);
+    }
+
+    /**
+     * Internal: award rewards when thresholds are met
+     */
+    protected function awardRewardsIfEligible(Customer $customer)
+    {
+        // Must be opted in to participate
+        if (! $customer->rewards_opt_in) return;
+
+        $total = Payment::where('customer_id', $customer->customer_id)
+            ->where('status', 'paid')
+            ->sum('amount');
+
+        $shouldHave = floor($total / 1000);
+        $issued = Reward::where('customer_id', $customer->id)->count();
+
+        $toIssue = $shouldHave - $issued;
+        for ($i = 0; $i < $toIssue; $i++) {
+            Reward::create([
+                'customer_id' => $customer->id,
+                'percent' => 20,
+                'earned_at' => now(),
+                'expires_at' => now()->addMonths(6),
+            ]);
+        }
+
+
+    }
+
+    /**
+     * Set rewards opt-in for the authenticated customer
+     */
+    public function setRewardsOptIn(Request $request): JsonResponse
+    {
+        $auth = $request->user();
+        if ($auth->type !== 'user') {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $data = $request->validate([
+            'opt_in' => 'required|boolean',
+        ]);
+
+        $customer = Customer::where('customer_id', $auth->id)->first();
+        if (!$customer) {
+            return response()->json(['message' => 'Customer profile not found'], 404);
+        }
+
+        $customer->rewards_opt_in = $data['opt_in'];
+        $customer->save();
+
+        return response()->json([
+            'success' => true,
+            'data' => ['opt_in' => (bool) $customer->rewards_opt_in],
         ]);
     }
 }

@@ -16,11 +16,17 @@ class JobRequest extends Model
         'description',
         'budget',
         'final_price',
+        'discount_percent',
+        'discounted_price',
         'status',
         'scheduled_at',
         'completed_at',
         'rating',
         'rating_at',
+    ];
+
+    protected $casts = [
+        'discounted_price' => 'decimal:2',
     ];
 
     protected function casts(): array
